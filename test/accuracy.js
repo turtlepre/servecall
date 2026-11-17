@@ -104,7 +104,7 @@ function flipRows(rgba, w, h) {
 // mirror: the whole picture is flipped left to right before the pipeline
 // sees it, which is exactly the view of the other (ad) service box from the
 // mirrored camera position.
-export function runConfig(cfg, { fps, n, seed = 11, clickSigma = 1.0, exposure = 1 / 1000, W = 1280, H = 720, hfov = 66, serves, jitter = 0, drop = 0, snap = false, tail = 1.0, idle = 2.6, court = 'blue', noise = 2.5, shake = 0, staticBalls = 0, mirror = false, settings = {}, onFrame = null } = {}) {
+export function runConfig(cfg, { fps, n, seed = 11, clickSigma = 1.0, exposure = 1 / 1000, W = 1280, H = 720, hfov = 66, serves, jitter = 0, drop = 0, snap = false, snapRadius = 14, tail = 1.0, idle = 2.6, court = 'blue', noise = 2.5, shake = 0, staticBalls = 0, mirror = false, settings = {}, onFrame = null } = {}) {
   const cam = makeCamera({ pos: cfg.pos, target: cfg.target || TARGET, W, H, hfov });
   setCourt(court);
   const bg = renderBackground(cam);
@@ -134,7 +134,7 @@ export function runConfig(cfg, { fps, n, seed = 11, clickSigma = 1.0, exposure =
   let snapInfo = null;
   if (snap) {
     const img = { data: view({ x: 0, y: 0, w: W, h: H }, [], null), width: W, height: H };
-    snapInfo = snapCorners(img, clicks);
+    snapInfo = snapCorners(img, clicks, { radius: snapRadius });
     clicks = snapInfo.pts;
   }
   const pipe = new Pipeline(settings);
@@ -248,6 +248,7 @@ async function main() {
   const jitter = Number(opt('--jitter', 0)) / 1000;
   const drop = Number(opt('--drop', 0));
   const snap = flag('--snap');
+  const snapRadius = Number(opt('--radius', 14)); // line search distance in px (the app: about 24 on a phone)
   // model checks: the simulated ball differs from what the app assumes
   const tauc = opt('--tauc', null); // contact time in ms, fixed (default: 3.5-5.5 at random)
   const drag = Number(opt('--drag', 1)); // air drag relative to the app's value
@@ -264,7 +265,7 @@ async function main() {
     const cfg = CONFIGS[key];
     for (const fps of fpsList) {
       const t0 = Date.now();
-      const res = runConfig(cfg, { fps, n, seed, serves, exposure, clickSigma, jitter, drop, snap, mirror, court });
+      const res = runConfig(cfg, { fps, n, seed, serves, exposure, clickSigma, jitter, drop, snap, snapRadius, mirror, court });
       const s = summarize(res);
       const c = res.calib;
       rows.push({ key, fps, s });

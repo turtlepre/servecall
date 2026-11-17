@@ -55,6 +55,10 @@ function impossibleCamera(cam) {
 // odd one: a zoomed or wide lens must not be "corrected".)
 // pts: 4 image points as tapped; W, H: picture size.
 // Returns { pts (in CORNERS order), shift (0 = as tapped) }.
+// NOT USED any more: with a finger's error in the taps it also renumbered
+// right orders (the app now shows the line names and lets the player
+// renumber with two buttons). Kept for one release so that a phone still
+// holding the previous app.js, which imports it, can start with this file.
 export function orderCorners(pts, W, H) {
   const uv = CORNERS.map((c) => c.uv);
   const camFor = (shift) => {

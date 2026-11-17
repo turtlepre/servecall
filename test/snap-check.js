@@ -83,5 +83,47 @@ for (const key of ['A25', 'A16', 'SIDE', 'SIDE16', 'FENCE']) {
   console.log(`${key.padEnd(7)} taps 6 px off: box boundary within ${(worst * 100).toFixed(0)} cm (${bad}/20 over 10 cm) | taps on the doubles sideline: within ${(worstD * 100).toFixed(0)} cm, moved to singles ${movedD}/10`);
   if (bad > 0 || badD > 0 || movedD < 10) failed = true;
 }
+// 4. A finger, not a careful drag: taps about 8 px off (per axis) from a low
+// tripod, where the two sidelines are only a few pixels apart on screen.
+// Snapping must never leave a corner far from where it belongs: a tap that
+// looks like one on the doubles line but is only off must not be "moved in".
+console.log('');
+for (const [name, pos] of [['corner 1.3m', [6.5, 25.3, 1.3]], ['corner 1.6m', [6.5, 25.3, 1.6]], ['side 1.3m', [7.5, 18.3, 1.3]], ['side 1.6m', [7.5, 18.3, 1.6]]]) {
+  const { img, truth } = scene(pos);
+  const r = rng(99 + 8);
+  let far = 0, worse = 0;
+  for (let t = 0; t < 40; t++) {
+    const taps = truth.map(([x, y]) => [x + r.gauss() * 8, y + r.gauss() * 8]);
+    const res = snapCorners(img, taps, { radius: 26 });
+    const before = taps.map((p, i) => Math.hypot(p[0] - truth[i][0], p[1] - truth[i][1]));
+    const after = res.pts.map((p, i) => Math.hypot(p[0] - truth[i][0], p[1] - truth[i][1]));
+    if (Math.max(...after) > 40) far++;
+    if (after.some((d, i) => d > before[i] + 10)) worse++;
+  }
+  console.log(`${name.padEnd(12)} finger taps (8 px): a corner over 40 px off ${far}/40, a corner made 10 px worse than its tap ${worse}/40`);
+  if (far > 0 || worse > 1) failed = true;
+}
+// 5. The same finger on the doubles sideline, from beside the court, where
+// the alley is a few pixels: the corners may stay on the singles line's
+// assumption, but the box must never be skewed (one sideline corner moved in,
+// the other left out on the doubles line).
+console.log('');
+for (const [name, pos] of [['side 2.5m', [7.5, 18.3, 2.5]], ['side 1.6m', [7.5, 18.3, 1.6]], ['side 1.3m', [7.5, 18.3, 1.3]]]) {
+  const { img, truth, cam } = scene(pos);
+  const Hinv = invert3(homography(CORNERS.map((c) => c.uv), truth));
+  const P = (u, v) => { const [X, Y] = boxToWorld(u, v); return cam.project([X, Y, 0]).slice(0, 2); };
+  const onDoubles = [P(0, 0), P(BOX_W + 1.37, 0), P(BOX_W + 1.37, BOX_L), P(0, BOX_L)];
+  const r = rng(500 + 8);
+  let skew = 0, worst = 0;
+  for (let t = 0; t < 30; t++) {
+    const res = snapCorners(img, onDoubles.map(([x, y]) => [x + r.gauss() * 8, y + r.gauss() * 8]), { radius: 26 });
+    const b = res.pts.map((q) => applyH(Hinv, ...q));
+    const off = Math.max(Math.abs(b[1][0] - BOX_W), Math.abs(b[2][0] - BOX_W));
+    worst = Math.max(worst, off);
+    if (off > 0.3) skew++;
+  }
+  console.log(`${name.padEnd(12)} finger taps (8 px) on the doubles sideline: sideline over 30 cm off ${skew}/30 (worst ${(worst * 100).toFixed(0)} cm)`);
+  if (skew > 0) failed = true;
+}
 if (failed) { console.error('\nSNAP CHECK FAILED'); process.exit(1); }
 console.log('\nsnap check passed');

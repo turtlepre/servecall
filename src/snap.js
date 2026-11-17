@@ -15,7 +15,7 @@
 // inner side before it is trusted.
 
 import { homography, invert3, applyH } from './geometry.js';
-import { CORNERS, BOX_W } from './court.js';
+import { CORNERS, BOX_W, BOX_L } from './court.js';
 
 const LUMA = (d, i) => 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
 
@@ -147,6 +147,9 @@ function lineThrough(p, q) {
 // the line itself is 5 cm wide and lies inside it.
 const LINE_HALF = 0.025;
 const DOUBLES_GAP = 1.37; // singles to doubles sideline, metres
+// Where the singles sideline lies in a box whose sideline corners were tapped
+// on the doubles sideline: that box is stretched by (BOX_W + gap) / BOX_W.
+const SINGLES_IN = BOX_W * BOX_W / (BOX_W + DOUBLES_GAP);
 
 // pts: 4 tapped corners in CORNERS order (net-centre, net-side, service-side,
 // service-centre). radius: how far (video px) a line may be from the taps.
@@ -277,14 +280,44 @@ export function snapCorners(img, pts, { radius = 14, samples = 28 } = {}) {
     side: sideline(),
     service: single(pts[3], pts[2], 'v', +1),
   };
+  // How far this player's taps are off (per axis): the tap where two fitted
+  // lines cross, and the distance of taps from lines they lie on whichever
+  // sideline was tapped. (No such evidence: a few pixels, a careful tap.)
+  function tapError() {
+    const offs = [];
+    if (fits.center) offs.push(dist(fits.center.line, pts[0][0], pts[0][1]));
+    if (fits.service) offs.push(dist(fits.service.line, pts[2][0], pts[2][1]));
+    const c4 = fits.center && fits.service ? intersect(fits.center.line, fits.service.line) : null;
+    if (c4) offs.push(c4[0] - pts[3][0], c4[1] - pts[3][1]);
+    return offs.length ? Math.max(3, Math.sqrt(offs.reduce((a, x) => a + x * x, 0) / offs.length)) : 6;
+  }
+
+  // Were the sideline corners tapped on the doubles sideline? The evidence is
+  // weighed against this player's tap error (log odds, each part capped: a
+  // finger can land far off now and then):
+  //   corner 3, where two fitted lines cross: is the crossing nearer the tap
+  //     (singles) or where a tap on the doubles line puts the singles corner,
+  //     an alley along the service line? This is the strong part.
+  //   corner 2: a tap on the doubles line lies an alley outside the fitted
+  //     sideline. Weak: from low down or from beside the court that is a few
+  //     pixels, no more than a finger's error.
+  // Without clear evidence the singles line the player was asked to tap is
+  // assumed.
+  const alley2 = applyH(H0, SINGLES_IN, 0), alley3 = applyH(H0, SINGLES_IN, BOX_L);
   let movedSide = false;
   if (fits.side) {
     const partner = innerPartner(fits.side);
     if (partner) fits.side = partner;
-    // Where the fitted sideline sits in the tapped box: well inside its
-    // edge means the sideline corners were tapped on the doubles sideline.
-    const us = fits.side.points.map((q) => applyH(H0inv, q.x, q.y)[0]);
-    movedSide = BOX_W - median(us) > 0.5;
+    const sigma = Math.max(4, tapError()), twoVar = 2 * sigma * sigma;
+    const cap = (x, m) => Math.max(-m, Math.min(m, x));
+    const outward = -Math.sign(dist(fits.side.line, inside[0], inside[1])) || 1;
+    const sq = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2;
+    const c3 = intersect(fits.side.line, fits.service ? fits.service.line : lineThrough(pts[3], pts[2]));
+    const e3 = c3 ? cap((sq(c3, pts[2]) - sq(c3, alley3)) / twoVar, 4) : 0;
+    const d2 = outward * dist(fits.side.line, pts[1][0], pts[1][1]);
+    const da = outward * dist(fits.side.line, alley2[0], alley2[1]);
+    const e2 = cap((d2 * d2 - da * da) / twoVar, 1);
+    movedSide = e2 + e3 > Math.log(9); // (9 to 1 for the singles line)
   }
 
   const L = {
@@ -294,31 +327,50 @@ export function snapCorners(img, pts, { radius = 14, samples = 28 } = {}) {
   };
   // Net-side corners have no crossing line. Slide each tap onto its fitted
   // line instead of intersecting with the tapped net line, which would
-  // magnify tap error where the lines meet at a shallow angle.
+  // magnify tap error where the lines meet at a shallow angle. A net-side
+  // tap on the doubles line first goes an alley along the tapped net edge.
   const project = (Ln, p) => {
     const d = dist(Ln, p[0], p[1]);
     return [p[0] - d * Ln.nx, p[1] - d * Ln.ny];
   };
+  const from2 = movedSide ? alley2 : pts[1];
   const cand = [
     fits.center ? project(L.center, pts[0]) : null,
-    // (after a move from the doubles line the tap is far off; follow the net instead)
-    fits.side ? (movedSide ? intersect(L.side, lineThrough(pts[0], pts[1])) : project(L.side, pts[1])) : null,
+    fits.side ? project(L.side, from2) : null,
     fits.side || fits.service ? intersect(L.side, L.service) : null,
     fits.center || fits.service ? intersect(L.center, L.service) : null,
   ];
   // A corner fixed by two fitted lines is trusted as far as lines can be
   // found; one that still leans on a tapped line may only move a little.
-  const reach = [radius, movedSide ? Infinity : radius, movedSide ? Infinity : 2 * radius, 2 * radius];
+  // After a tap on the doubles line: an alley's width more.
+  const far = (a, p) => Math.hypot(a[0] - p[0], a[1] - p[1]);
+  const reach = [radius, movedSide ? far(alley2, pts[1]) + radius : radius, movedSide ? far(alley3, pts[2]) + 2 * radius : 2 * radius, 2 * radius];
   const both = [true, true, !!(fits.side && fits.service), !!(fits.center && fits.service)];
   const snapped = [false, false, false, false];
+  const took = [false, false, false, false];
   const out = pts.map((p, i) => {
     const c = cand[i];
     if (!c) return [p[0], p[1]];
     const limit = both[i] ? reach[i] : Math.min(reach[i], radius);
-    if (Math.hypot(c[0] - p[0], c[1] - p[1]) > limit) return [p[0], p[1]];
+    if (far(c, p) > limit) return [p[0], p[1]];
     snapped[i] = both[i];
+    took[i] = true;
     return c;
   });
+  // One end of the sideline (or centre line) on the fitted line and the other
+  // still on its tap would skew the box: the net-side corner follows the
+  // service-line corner onto the line, or, far off, both keep their taps.
+  for (const [n, sv, key, src] of [[1, 2, 'side', from2], [0, 3, 'center', pts[0]]]) {
+    if (!took[sv] || took[n] || !fits[key]) continue;
+    const c = project(L[key], src);
+    if (far(c, pts[n]) <= reach[n] + 2 * radius) {
+      out[n] = c;
+      snapped[n] = took[n] = true;
+    } else {
+      out[sv] = [pts[sv][0], pts[sv][1]];
+      snapped[sv] = took[sv] = false;
+    }
+  }
   return {
     pts: out,
     found: ['center', 'side', 'service'].filter((k) => fits[k]),

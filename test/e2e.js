@@ -156,10 +156,9 @@ async function runTouchCalibration(browser) {
 }
 
 // The corners tapped starting at the wrong corner, as on a real court: the
-// order must be put right as soon as the fourth corner is placed (before
-// [완료]), the name buttons must renumber the points without moving them,
-// and corners saved in the wrong order by an earlier version are put right
-// when loaded.
+// names around the box show it and one press of [이름 돌리기] puts it right,
+// without placing the points again. And rough taps in the right order are
+// never renumbered by the app (a review found an automatic check that did).
 async function runWrongOrder(browser) {
   const ctx = await browser.newContext({ viewport: { width: 900, height: 420 }, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
@@ -176,45 +175,46 @@ async function runWrongOrder(browser) {
   });
   const toScreen = ([x, y]) => [fitInfo.left + fitInfo.ox + x * fitInfo.s, fitInfo.top + fitInfo.oy + y * fitInfo.s];
   const pts = () => page.evaluate(() => window.__servecall.state.pts.map((p) => (p ? p.slice() : null)));
-  // got[i] is at truth corner map[i]
-  const near = (got, map, tol = 3) => got.every((p, i) => p && Math.hypot(p[0] - truth.corners[map[i]][0], p[1] - truth.corners[map[i]][1]) < tol);
+  // got[i] lies at map[i] of `ref`
+  const near = (got, ref, map, tol = 3) => got.every((p, i) => p && Math.hypot(p[0] - ref[map[i]][0], p[1] - ref[map[i]][1]) < tol);
   const hiddenBefore = await page.isHidden('#rotateNames');
   // started at the service line / centre line corner, then went round
   for (const i of [3, 0, 1, 2]) {
     const [x, y] = toScreen(truth.corners[i]);
     await page.mouse.click(x, y);
   }
-  const fixed = near(await pts(), [0, 1, 2, 3]);
-  const told = (await page.textContent('#toast')).includes('바로잡았습니다');
+  const asTapped = near(await pts(), truth.corners, [3, 0, 1, 2]);
   const shown = hiddenBefore && (await page.isVisible('#rotateNames')) && (await page.isVisible('#flipNames'));
   await page.click('#rotateNames');
-  const rotated = near(await pts(), [1, 2, 3, 0]);
+  const rotated = near(await pts(), truth.corners, [0, 1, 2, 3]);
   await page.click('#flipNames');
-  const flipped = near(await pts(), [2, 1, 0, 3]);
+  const flipped = near(await pts(), truth.corners, [1, 0, 3, 2]);
   await page.click('#flipNames');
-  for (let k = 0; k < 3; k++) await page.click('#rotateNames');
-  const back = near(await pts(), [0, 1, 2, 3]);
+  const back = near(await pts(), truth.corners, [0, 1, 2, 3]);
   await page.click('#calibDone');
   await page.waitForSelector('#judge:not([hidden])');
-  const calibOk = await page.evaluate(() => window.__servecall.pipe.calib.points.map((p) => p.slice()));
-  const finished = near(calibOk, [0, 1, 2, 3], 4);
-  // corners saved in the wrong order (as the earlier version did), then loaded
+  const calib1 = await page.evaluate(() => window.__servecall.pipe.calib.points.map((p) => p.slice()));
+  const finished = near(calib1, truth.corners, [0, 1, 2, 3], 4);
+  // rough taps in the right order (once turned round by an automatic check)
   await page.click('#recalib');
   await page.waitForSelector('#calib:not([hidden])');
-  await page.click('#calibBack');
-  await page.evaluate(() => {
-    const k = Object.keys(localStorage).find((x) => /calib/.test(x));
-    const saved = JSON.parse(localStorage.getItem(k));
-    saved.pts = [saved.pts[3], saved.pts[0], saved.pts[1], saved.pts[2]];
-    localStorage.setItem(k, JSON.stringify(saved));
-  });
-  await page.click('#startCam');
-  await page.waitForSelector('#calib:not([hidden])', { timeout: 15000 });
-  await page.click('#loadPrev');
-  const loaded = near(await pts(), [0, 1, 2, 3], 4);
+  await page.click('#calibReset');
+  // (a message left from the judging screen may still lie over the box: taps
+  // go through it to the picture)
+  const rough = [[270.3, 281.7], [440.5, 240.8], [672, 299.7], [497.1, 329.9]];
+  for (const p of rough) {
+    const [x, y] = toScreen(p);
+    await page.mouse.click(x, y);
+  }
+  const keptRough = near(await pts(), rough, [0, 1, 2, 3], 0.5);
+  await page.click('#calibDone');
+  await page.waitForSelector('#judge:not([hidden])');
+  const res2 = await page.evaluate(() => ({ h: window.__servecall.pipe.calib.cam.height, found: window.__servecall.state.snapResult?.found || [] }));
+  const roughOk = keptRough && res2.found.length === 3 && Math.abs(res2.h - 2.5) < 0.4;
   await ctx.close();
-  const ok = fixed && told && shown && rotated && flipped && back && finished && loaded && !errors.length;
-  console.log(`\n[모서리를 다른 순서로 찍었을 때] 네 번째 점에서 바로잡음 ${fixed && told ? '예' : '아니오'} · 이름 버튼 ${shown && rotated && flipped && back ? '정상' : '이상'} · [완료] 후 ${finished ? '맞음' : '틀림'} · 잘못 저장된 지난 위치 ${loaded ? '바로잡음' : '그대로'}${ok ? '' : '  ✗'}`);
+  const ok = asTapped && shown && rotated && flipped && back && finished && roughOk && !errors.length;
+  console.log(`\n[모서리를 다른 순서로 찍었을 때] 찍은 순서 그대로 ${asTapped ? '예' : '아니오'} · [이름 돌리기] 한 번에 바로잡힘 ${rotated ? '예' : '아니오'} · [센터↔사이드] ${flipped && back ? '정상' : '이상'} · [완료] 후 ${finished ? '맞음' : '틀림'}`);
+  console.log(`  손가락 오차가 있는 바른 순서: 번호 그대로 ${keptRough ? '예' : '아니오'} · 라인 ${res2.found.length}개 · 카메라 높이 ${res2.h.toFixed(2)}m${ok ? '' : '  ✗'}`);
   if (errors.length) console.log('page errors:', errors);
   return ok;
 }
