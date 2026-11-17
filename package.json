@@ -1,0 +1,14 @@
+{
+  "name": "servecall",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Serve in/out caller for solo tennis practice (browser, phone camera)",
+  "scripts": {
+    "test": "node test/unit.js && node test/events.js && node test/snap-check.js && node test/scenarios.js && node test/accuracy.js --quick",
+    "accuracy": "node test/accuracy.js",
+    "video": "node test/make-video.js",
+    "e2e": "node test/e2e.js",
+    "serve": "node test/serve.js"
+  }
+}

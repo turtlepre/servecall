@@ -1,0 +1,15 @@
+{
+  "name": "서브콜",
+  "short_name": "서브콜",
+  "description": "혼자 하는 테니스 서브 연습용 인·아웃 판독기",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0c1310",
+  "theme_color": "#10201a",
+  "lang": "ko",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#10201a">
+<meta name="description" content="혼자 하는 테니스 서브 연습용 인·아웃 판독기. 반대편에 세운 폰 카메라가 공이 떨어진 곳을 보고 블루투스 이어폰으로 알려 줍니다.">
+<title>서브콜</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<main id="home" class="screen">
+  <div class="home-wrap">
+    <header class="brand">
+      <svg class="mark" viewBox="0 0 48 48" aria-hidden="true">
+        <rect x="4" y="30" width="40" height="5" rx="1" class="mark-line"/>
+        <circle cx="24" cy="21" r="10" class="mark-ball"/>
+        <path d="M15.5 16.5c5 3 12 3 17 0M15.5 25.5c5-3 12-3 17 0" class="mark-seam"/>
+      </svg>
+      <div>
+        <h1>서브콜</h1>
+        <p class="tagline">혼자 하는 서브 연습. 공이 떨어진 곳을 보고 이어폰으로 인·아웃을 불러 줍니다.</p>
+      </div>
+    </header>
+
+    <div class="actions">
+      <button id="startCam" class="btn primary big">카메라로 시작</button>
+      <button id="soundTestBtn" class="btn">소리 테스트</button>
+      <label class="btn file">영상 파일로 테스트<input id="fileInput" type="file" accept="video/*" hidden></label>
+    </div>
+
+    <section class="card guide" aria-labelledby="guideTitle">
+      <h2 id="guideTitle">카메라 두는 곳</h2>
+      <div class="guide-body">
+        <svg class="court-guide" viewBox="-7.5 -5 17.5 34" role="img" aria-label="코트 위에서 본 카메라 위치. 서버는 아래쪽 베이스라인 오른쪽, 서브는 위쪽 왼편 박스로 가고, 카메라는 위쪽 오른쪽 뒤 코너(A) 또는 오른쪽 옆 서비스라인 연장선(B)에 둡니다.">
+          <rect x="-5.5" y="-0.1" width="11" height="24" class="g-court"/>
+          <rect x="-4.1" y="0" width="8.2" height="23.8" class="g-lines"/>
+          <line x1="-5.5" y1="11.9" x2="5.5" y2="11.9" class="g-net"/>
+          <line x1="-4.1" y1="5.5" x2="4.1" y2="5.5" class="g-lines"/>
+          <line x1="-4.1" y1="18.3" x2="4.1" y2="18.3" class="g-lines"/>
+          <line x1="0" y1="5.5" x2="0" y2="18.3" class="g-lines"/>
+          <rect x="-4.1" y="5.5" width="4.1" height="6.4" class="g-target"/>
+          <circle cx="0.8" cy="24.6" r="0.9" class="g-server"/>
+          <path d="M0.8 23.4 L-1.9 8.4" class="g-serve"/>
+          <path d="M-1.9 8.4 L-3.6 -1.5" class="g-serve after"/>
+          <g class="g-cam"><circle cx="6.6" cy="-1.6" r="1.25"/><text x="6.6" y="-0.95">A</text></g>
+          <g class="g-cam"><circle cx="7.6" cy="5.5" r="1.25"/><text x="7.6" y="6.15">B</text></g>
+          <text x="0.8" y="27.6" class="g-lbl">나</text>
+          <text x="-2" y="-3.6" class="g-lbl">공이 빠지는 쪽</text>
+        </svg>
+        <ol class="tips">
+          <li><b>A</b> 내가 서는 쪽 사이드라인을 따라 반대편으로 가서, 베이스라인 뒤 1~2m · 복식 라인 바깥에 세웁니다. 공이 빠지는 방향의 반대쪽이라 가장 안전합니다.</li>
+          <li><b>B</b> 반대편 서비스라인을 그대로 연장한 곳, 복식 라인 바깥 2m. 박스와 가까워 더 정확합니다. 옆 코트와 붙어 있으면 그쪽 경기에 방해가 될 수 있습니다.</li>
+          <li><b>높이</b>: 보통 삼각대(1.5~1.7m)라면 B가 낫고, 2.5m 이상 올릴 수 있으면 A·B 모두 좋습니다. 낮을수록 라인 근처 판정이 흔들립니다.</li>
+          <li>서비스 박스 전체와 주변 2~3m가 화면에 들어오게 하고, 듀스·애드를 바꾸면 카메라도 반대쪽으로 옮깁니다. 폰은 <b>가로</b>로 고정하세요.</li>
+          <li><b>밝은 낮</b>에 쓰세요. 해 질 무렵이나 야간 조명에서는 공이 번져 보여 판정이 안 됩니다.</li>
+          <li>이어폰을 이 폰에 연결한 뒤 <b>소리 테스트</b>를 켜고 서브 자리까지 걸어가 보세요. 끊기면 거리가 너무 먼 것입니다.</li>
+          <li>공은 봤는데 판정하지 못하면 <b>"놓쳤어요"</b>라고 합니다. 아무 소리도 없으면 네트에 걸렸거나 공이 보이지 않은 것입니다.</li>
+          <li>화면이 꺼지거나 카메라가 멈추면 판정도 멈춥니다. 그때는 <b>경고음과 말</b>로 알려 주니 폰을 확인하세요.</li>
+        </ol>
+      </div>
+    </section>
+
+    <details class="card settings">
+      <summary>설정</summary>
+      <div class="set-grid">
+        <label for="setRes">해상도</label>
+        <select id="setRes"><option value="720">720p (권장)</option><option value="1080">1080p (느린 폰은 버벅임)</option></select>
+        <label for="setFps">프레임</label>
+        <select id="setFps"><option value="60">60fps 우선 (정확)</option><option value="30">30fps</option></select>
+        <label for="setVoice">알림</label>
+        <select id="setVoice"><option value="both">효과음 + 음성</option><option value="voice">음성만</option><option value="beep">효과음만</option></select>
+        <label for="setRate">말 속도</label>
+        <div class="range-row"><input id="setRate" type="range" min="0.8" max="1.6" step="0.1"><output id="rateOut"></output></div>
+        <label for="setKeep">이어폰 끊김 방지</label>
+        <div class="check-row"><input id="setKeep" type="checkbox"><span>들리지 않는 아주 작은 소리를 계속 보내 블루투스가 잠들지 않게 합니다</span></div>
+        <label for="setSnap">라인 자동 맞춤</label>
+        <div class="check-row"><input id="setSnap" type="checkbox"><span>찍은 모서리 주변에서 흰 라인을 찾아 정밀하게 보정합니다</span></div>
+      </div>
+    </details>
+    <p class="fine">영상은 이 폰 안에서만 분석하고 어디로도 보내지 않습니다.</p>
+  </div>
+</main>
+
+<section id="calib" class="screen" hidden>
+  <div id="calibStage" class="stage">
+    <canvas id="calibOverlay" class="overlay"></canvas>
+    <canvas id="loupe" class="loupe" hidden></canvas>
+    <div id="calibPanel" class="calib-panel">
+      <div class="calib-text">
+        <div class="step"><span id="stepNum" class="step-num">1</span><span id="stepText"></span></div>
+        <p id="stepHint" class="hint"></p>
+      </div>
+      <svg id="cornerMap" class="corner-map" viewBox="-1.6 -1.2 7.4 8.6" aria-hidden="true">
+        <rect x="0" y="0" width="4.14" height="6.4" class="cm-box"/>
+        <line x1="-0.8" y1="6.4" x2="4.94" y2="6.4" class="cm-net"/>
+        <text x="2.07" y="7.25" class="cm-lbl">네트</text>
+        <text x="2.07" y="-0.4" class="cm-lbl">서비스라인</text>
+        <circle data-corner="0" cx="4.14" cy="6.4" r="0.42"/><text x="4.14" y="6.58" class="cm-n">1</text>
+        <circle data-corner="1" cx="0" cy="6.4" r="0.42"/><text x="0" y="6.58" class="cm-n">2</text>
+        <circle data-corner="2" cx="0" cy="0" r="0.42"/><text x="0" y="0.18" class="cm-n">3</text>
+        <circle data-corner="3" cx="4.14" cy="0" r="0.42"/><text x="4.14" y="0.18" class="cm-n">4</text>
+        <text x="5.05" y="3.2" class="cm-lbl side" transform="rotate(90 5.05 3.2)">센터라인</text>
+        <text x="-0.9" y="3.2" class="cm-lbl side" transform="rotate(-90 -0.9 3.2)">사이드라인</text>
+      </svg>
+      <p class="map-note">서브 넣는 자리에서 본 듀스 박스 (애드는 좌우 반대)</p>
+    </div>
+    <div class="calib-bar">
+      <button id="calibBack" class="btn ghost">뒤로</button>
+      <button id="calibReset" class="btn ghost">처음부터</button>
+      <button id="loadPrev" class="btn ghost" hidden>지난 위치</button>
+      <label class="inline" hidden><span>카메라</span><select id="camSelect"></select></label>
+      <label id="zoomRow" class="inline" hidden><span>줌</span><input id="zoom" type="range"><output id="zoomOut"></output></label>
+      <label id="scrubRow" class="inline grow" hidden><span>장면</span><input id="scrub" type="range" min="0" step="0.01"></label>
+      <span id="camInfo" class="cam-info"></span>
+      <button id="calibDone" class="btn primary" disabled>완료</button>
+    </div>
+  </div>
+</section>
+
+<section id="judge" class="screen" hidden>
+  <div id="judgeStage" class="stage">
+    <canvas id="judgeOverlay" class="overlay"></canvas>
+  </div>
+  <aside class="panel">
+    <div id="alertBar" class="alert" role="alert" hidden></div>
+    <div id="verdict" class="verdict" data-state="idle" aria-live="polite">
+      <div id="verdictMain" class="v-main">대기 중</div>
+      <div id="verdictSub" class="v-sub"></div>
+    </div>
+    <div class="court-wrap">
+      <svg id="court" class="court" role="img" aria-label="최근 서브가 떨어진 위치"></svg>
+      <div class="stats-col">
+        <dl class="stats">
+          <div><dt>오늘 서브</dt><dd id="statTotal">0</dd></div>
+          <div><dt>인</dt><dd id="statIn">0</dd></div>
+          <div><dt>아웃</dt><dd id="statOut">0</dd></div>
+        </dl>
+        <p id="statOutDetail" class="detail"></p>
+      </div>
+    </div>
+    <label class="sens"><span>감도</span><input id="sens" type="range" min="15" max="60" step="1"><span class="sens-ends">둔하게 · 민감하게</span></label>
+    <div class="panel-actions">
+      <button id="recalib" class="btn">다시 맞추기</button>
+      <button id="clearStats" class="btn">기록 지우기</button>
+      <button id="judgeSound" class="btn">소리 확인</button>
+      <button id="dimBtn" class="btn">절전 화면</button>
+      <button id="debugBtn" class="btn" aria-pressed="false">분석 보기</button>
+      <label class="inline file-only"><span>재생 속도</span>
+        <select id="rateSel"><option value="0.25">0.25배</option><option value="0.5" selected>0.5배</option><option value="1">1배</option></select>
+      </label>
+      <button id="stopBtn" class="btn danger">끝내기</button>
+    </div>
+    <p id="calibInfo" class="fine"></p>
+  </aside>
+</section>
+
+<div id="soundtest" class="modal" hidden>
+  <div class="modal-card">
+    <h2>소리 테스트</h2>
+    <p>이 폰을 카메라 자리에 두고 서브 넣을 자리로 걸어가세요. 2초마다 숫자를 읽습니다(2분 동안). 숫자가 끊기거나 건너뛰면 블루투스 거리가 부족한 것입니다.</p>
+    <div id="soundCount" class="count">0</div>
+    <button id="soundStop" class="btn primary">멈추기</button>
+  </div>
+</div>
+
+<div id="dim" class="dim" hidden><p>판정은 계속됩니다. 화면을 누르면 돌아갑니다.</p></div>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<video id="video" playsinline muted></video>
+<script type="module" src="src/app.js"></script>
+</body>
+</html>
