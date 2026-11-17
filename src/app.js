@@ -1,7 +1,7 @@
 // 서브콜 — UI controller: camera, corner calibration, live calls, stats.
 
 import { Pipeline, TimeSource } from './pipeline.js';
-import { CORNERS, BOX_W, BOX_L, NEAR_BAND, GUIDE_LINES, label } from './court.js';
+import { CORNERS, BOX_W, BOX_L, NEAR_BAND, GUIDE_LINES, label, orderCorners } from './court.js';
 import { homography, applyH } from './geometry.js';
 import { snapCorners } from './snap.js';
 import { Voice } from './voice.js';
@@ -29,6 +29,7 @@ const state = {
   pts: [null, null, null, null],
   active: 0,
   drag: null,
+  orderByHand: false, // the corner numbers were set with the buttons: keep them
   snapResult: null,
   running: false,
   vfc: 0,
@@ -232,6 +233,7 @@ function startCalibration({ keepPoints = false } = {}) {
     const saved = loadJSON(KEYS.calib, null);
     state.pts = [null, null, null, null];
     state.active = 0;
+    state.orderByHand = false;
     $('#loadPrev').hidden = !(saved && saved.vw === video.videoWidth && saved.vh === video.videoHeight);
   }
   state.snapResult = null;
@@ -254,10 +256,13 @@ function updateCalibUI() {
   const i = state.active;
   $('#stepNum').textContent = `${i + 1}`;
   $('#stepText').textContent = CORNERS[i].label;
-  $('#stepHint').textContent = placed < 4
-    ? '서비스 박스의 모서리를 터치하세요(사이드는 안쪽 단식 라인). 손가락 굵기만큼 어긋나도 자동 맞춤이 라인을 찾아 보정합니다.'
-    : '흰 점선이 코트의 다른 라인과 겹치면 잘 맞은 것입니다. 어긋나면 점을 끌어 고치세요(천천히 움직입니다).';
+  $('#stepHint').textContent = placed === 0
+    ? '네트와 센터라인(가운데 라인)이 만나는 모서리부터 찍으세요. 오른쪽 그림은 서버 쪽에서 본 모양이라, 카메라 화면에서는 방향이 다를 수 있습니다.'
+    : placed < 4
+      ? '서비스 박스의 모서리를 터치하세요(사이드는 안쪽 단식 라인). 손가락 굵기만큼 어긋나도 자동 맞춤이 라인을 찾아 보정합니다.'
+      : '박스 둘레의 라인 이름과 흰 점선이 실제 코트와 맞으면 잘 맞은 것입니다. 이름이 다르면 [이름 돌리기]나 [센터↔사이드]를 누르고, 점이 어긋나면 끌어서 고치세요(천천히 움직입니다).';
   $('#calibDone').disabled = placed < 4;
+  $('#rotateNames').hidden = $('#flipNames').hidden = placed < 4;
   for (let k = 0; k < 4; k++) {
     const dot = document.querySelector(`#cornerMap [data-corner="${k}"]`);
     if (dot) {
@@ -331,6 +336,7 @@ function bindCalibration() {
     if (!d.fine) {
       const next = state.pts.findIndex((q) => !q);
       if (next >= 0) state.active = next;
+      else if (!state.orderByHand) checkOrder(); // the fourth corner was just placed
     }
     updateCalibUI();
   };
@@ -340,15 +346,22 @@ function bindCalibration() {
   $('#calibReset').onclick = () => {
     state.pts = [null, null, null, null];
     state.active = 0;
+    state.orderByHand = false;
     updateCalibUI();
   };
+  // The names around the box do not match the court: change which point is
+  // which corner, without placing the points again.
+  $('#rotateNames').onclick = () => { renumberCorners(ROTATE); state.orderByHand = true; updateCalibUI(); };
+  $('#flipNames').onclick = () => { renumberCorners(FLIP); state.orderByHand = true; updateCalibUI(); };
   $('#loadPrev').onclick = () => {
     const saved = loadJSON(KEYS.calib, null);
     if (saved?.pts?.length === 4) {
       state.pts = saved.pts.map((p) => [...p]);
       state.active = 0;
-      updateCalibUI();
+      state.orderByHand = false;
       toast('지난번 모서리를 불러왔습니다. 카메라를 옮겼다면 다시 맞추세요.');
+      checkOrder(); // (saved by an earlier version, the order may be wrong)
+      updateCalibUI();
     }
   };
   $('#calibDone').onclick = finishCalibration;
@@ -370,6 +383,7 @@ function bindCalibration() {
       if (state.pts.some(Boolean)) {
         state.pts = [null, null, null, null];
         state.active = 0;
+        state.orderByHand = false;
         updateCalibUI();
         toast('줌을 바꿔서 모서리를 지웠습니다. 다시 맞춰 주세요.');
       }
@@ -392,8 +406,37 @@ function grabFrame() {
   return g.getImageData(0, 0, c.width, c.height);
 }
 
+// Which tapped point is which corner. The points stay where they are; only
+// their numbers change, and with them the line names around the box.
+const ROTATE = [1, 2, 3, 0]; // (1) becomes the point that was (2): every name moves one edge on
+const FLIP = [1, 0, 3, 2]; // centre line and sideline change places
+function renumberCorners(map) {
+  const old = state.pts;
+  state.pts = map.map((k) => old[k]);
+  state.active = Math.max(0, map.indexOf(state.active));
+}
+
+// Started at the wrong corner? Checked as soon as the fourth corner is
+// placed, so that the names around the box are right before [완료].
+function checkOrder() {
+  if (!state.pts.every(Boolean)) return 0;
+  const { shift } = orderCorners(state.pts, video.videoWidth, video.videoHeight);
+  if (shift) {
+    renumberCorners([0, 1, 2, 3].map((i) => (i + shift) % 4));
+    toast('모서리를 찍은 순서가 어긋나 있어 바로잡았습니다. 박스 둘레의 라인 이름이 실제 코트와 맞는지 보세요.', 8000);
+  }
+  return shift;
+}
+
 function finishCalibration() {
   let pts = state.pts.map((p) => [...p]);
+  // Started at the wrong corner? (Line snapping needs the right order too.)
+  // Set with the buttons, the order is the player's: kept as it is.
+  const order = state.orderByHand ? { shift: 0 } : orderCorners(pts, video.videoWidth, video.videoHeight);
+  if (order.shift) {
+    pts = order.pts.map((p) => [...p]);
+    state.pts = pts.map((p) => [...p]);
+  }
   state.snapResult = null;
   if (settings.snap) {
     try {
@@ -419,7 +462,14 @@ function finishCalibration() {
   const snapMsg = settings.snap ? snapMessage(state.snapResult) : '';
   $('#calibInfo').textContent = `카메라 높이 약 ${c.cam.height.toFixed(1)}m${c.cam.estimated ? '' : ' (추정값)'} · 박스까지 약 ${distanceToBox(c).toFixed(0)}m`;
   const warn = calibrationWarning(c);
-  toast(warn || snapMsg || '시작합니다.', warn ? 9000 : 3200);
+  if (order.shift) {
+    const msg = '모서리를 찍은 순서가 어긋나 있어 바로잡았습니다. ①은 네트와 센터라인이 만나는 모서리입니다. 박스 둘레에 적힌 라인 이름이 맞는지 확인하세요.';
+    toast(warn ? `${msg}\n${warn}` : msg, 10000);
+    voice.notice('모서리 순서를 바로잡았어요. 화면의 라인 이름을 확인하세요');
+  } else {
+    toast(warn || snapMsg || '시작합니다.', warn ? 9000 : 3200);
+    if (warn) voice.notice('모서리 위치를 확인해 주세요. 화면에 안내가 있어요');
+  }
   startJudging();
 }
 
@@ -439,7 +489,7 @@ function snapMessage(res) {
 // the quadrilateral, but distances and directions would be off.
 function calibrationWarning(c) {
   const [, cv, ch] = c.cam.C;
-  if (cv < 1) return '카메라가 네트보다 서버 쪽에 있는 것으로 계산됩니다. 네트 쪽과 서비스라인 쪽 모서리를 바꿔 찍지 않았는지 [다시 맞추기]로 확인하세요.';
+  if (cv < 1) return '모서리를 찍은 순서가 맞지 않는 것 같습니다(카메라가 네트 너머에 있는 것으로 계산됩니다). ①은 네트와 센터라인이 만나는 모서리, 그다음 ②네트·사이드라인 ③서비스라인·사이드라인 ④서비스라인·센터라인 순서입니다. [다시 맞추기]로 확인하세요.';
   if (!c.cam.estimated || ch < 0.4 || ch > 8 || distanceToBox(c) > 40) return '모서리 위치가 코트 모양과 잘 맞지 않습니다. 흰 점선이 실제 라인과 겹치는지 보고, 어긋나면 [다시 맞추기]를 누르세요.';
   if (ch < 1.2) return `카메라 높이가 약 ${ch.toFixed(1)}m로 낮습니다. 라인 근처 판정이 부정확할 수 있으니 가능하면 더 높이 올리세요.`;
   return '';
@@ -591,7 +641,7 @@ function checkShutter() {
   state.shutter = sh;
   if (sh === null || sh <= 1 / 240) return;
   const now = performance.now();
-  if (now - lastShutterWarn < 60000) return;
+  if (lastShutterWarn && now - lastShutterWarn < 300000) return;
   lastShutterWarn = now;
   toast(`빛이 부족해 셔터가 느립니다(1/${Math.round(1 / sh)}초). 공이 번져서 판정이 안 될 수 있습니다. 밝은 낮에 쓰세요.`, 8000);
   if (!lastShutterSaid || now - lastShutterSaid > 300000) {
@@ -745,6 +795,30 @@ function sizeCanvas(canvas, stage) {
   return g;
 }
 
+// The names of the box's edges, written just outside each edge, so that a
+// corner order that does not match the court shows at a glance.
+const EDGE_NAMES = ['네트', '사이드라인', '서비스라인', '센터라인']; // edges after corners 0-1, 1-2, 2-3, 3-0
+function drawEdgeNames(g, corners) {
+  const cx = corners.reduce((a, p) => a + p[0], 0) / 4, cy = corners.reduce((a, p) => a + p[1], 0) / 4;
+  g.save();
+  g.font = '600 12px system-ui, sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.lineJoin = 'round';
+  corners.forEach((p, k) => {
+    const q = corners[(k + 1) % 4];
+    let mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2;
+    const d = Math.hypot(mx - cx, my - cy) || 1;
+    mx += (mx - cx) / d * 14; my += (my - cy) / d * 14;
+    g.lineWidth = 3;
+    g.strokeStyle = 'rgba(0,0,0,0.75)';
+    g.strokeText(EDGE_NAMES[k], mx, my);
+    g.fillStyle = '#ffffff';
+    g.fillText(EDGE_NAMES[k], mx, my);
+  });
+  g.restore();
+}
+
 // Dashed outlines of the other painted lines, predicted from the box corners.
 // If they sit on the real lines, the corners are right.
 function drawGuideLines(g, toStage, map) {
@@ -801,6 +875,7 @@ function drawCalib() {
       const map = (u, v) => (H[6] * u + H[7] * v + H[8] > 1e-6 ? applyH(H, u, v) : null);
       drawGuideLines(g, (x, y) => [f.ox + x * f.s, f.oy + y * f.s], map);
     }
+    drawEdgeNames(g, pts.map((q) => P(q)));
   }
   // The instruction panel lies over the picture: fade it while a corner is
   // being moved or sits underneath it.
@@ -896,6 +971,7 @@ function drawJudge() {
     const H = c.H;
     const map = (u, v) => (H[6] * u + H[7] * v + H[8] > 1e-6 ? applyH(H, u, v) : null);
     drawGuideLines(g, P, map);
+    drawEdgeNames(g, CORNERS.map((cn) => P(...pipe.courtToImage(cn.uv[0], cn.uv[1]))));
   }
   if (state.debug) {
     const roi = c.roi;

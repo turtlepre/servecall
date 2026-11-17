@@ -7,6 +7,8 @@
 //   boundary is the outer edge of each line. The centre service line (5 cm)
 //   belongs to both boxes, which is why BOX_W includes its full width.
 
+import { homography, cameraFromHomography } from './geometry.js';
+
 export const BOX_W = 4.115 + 0.025;
 export const BOX_L = 6.40;
 export const BALL_R = 0.0335;
@@ -26,6 +28,45 @@ export const CORNERS = [
   { key: 'serviceSide', label: '서비스라인 · 사이드라인', uv: [BOX_W, BOX_L] },
   { key: 'serviceCenter', label: '서비스라인 · 센터라인', uv: [0, BOX_L] },
 ];
+
+// Could a player have set this camera up for the app? Standing on the
+// receiver's side of the net, as the app tells them to, at a tripod's
+// height, with a phone's lens.
+function plausibleCamera(cam) {
+  return !!cam && cam.estimated && cam.C[1] > 2 && cam.height > 0.4 && cam.height < 8 && cam.hfov > 25 && cam.hfov < 120;
+}
+
+// No camera could have taken the picture this way: behind the net, the
+// corners matching no lens, or not at a tripod's height.
+function impossibleCamera(cam) {
+  return !cam || !cam.estimated || cam.C[1] < 1 || cam.height < 0.3 || cam.height > 10;
+}
+
+// The corners are tapped in CORNERS order. Starting at the wrong corner
+// while going round the right way is an easy slip (the corner nearest the
+// camera is the obvious place to begin). The four points still outline the
+// box, so in or out comes out the same, but everything that needs to know
+// which edge is the net goes wrong: the camera works out behind the net or
+// with a lens no phone has, serves are not recognised, and directions and
+// distances are spoken for the wrong lines. So: if the taps, taken as they
+// were made, describe no possible camera, and starting at exactly one of
+// the other corners gives a plausible one, that is what the player meant.
+// (Taps that describe some possible camera are left as they are, even an
+// odd one: a zoomed or wide lens must not be "corrected".)
+// pts: 4 image points as tapped; W, H: picture size.
+// Returns { pts (in CORNERS order), shift (0 = as tapped) }.
+export function orderCorners(pts, W, H) {
+  const uv = CORNERS.map((c) => c.uv);
+  const camFor = (shift) => {
+    const q = [0, 1, 2, 3].map((i) => pts[(i + shift) % 4]);
+    const Hm = homography(uv, q);
+    return { q, cam: Hm ? cameraFromHomography(Hm, W, H) : null };
+  };
+  if (!impossibleCamera(camFor(0).cam)) return { pts, shift: 0 };
+  const ok = [1, 2, 3].map((shift) => ({ shift, ...camFor(shift) })).filter((c) => plausibleCamera(c.cam));
+  if (ok.length !== 1) return { pts, shift: 0 };
+  return { pts: ok[0].q, shift: ok[0].shift };
+}
 
 // Centre lines of the painted lines around the box, as segments in box
 // coordinates. Drawn over the camera picture so the player can see at a

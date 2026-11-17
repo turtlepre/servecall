@@ -1,12 +1,13 @@
 // Unit tests: node test/unit.js
 import { homography, applyH, invert3, cameraFromHomography } from '../src/geometry.js';
-import { judge, judgeMark, boxSignedDistance, phrase, BOX_W, BOX_L, BALL_R, CORNERS } from '../src/court.js';
+import { judge, judgeMark, boxSignedDistance, phrase, orderCorners, BOX_W, BOX_L, BALL_R, CORNERS } from '../src/court.js';
 import { bounceParams, contactMark } from '../src/bounce.js';
 import { FrameClock, TimeSource } from '../src/timing.js';
 import { Tracker } from '../src/tracker.js';
 import { Pipeline } from '../src/pipeline.js';
 import { arcBack } from '../src/refine.js';
 import { makeCamera, boxToWorld, worldToBox, aimServe, ballAt, rng, NET_Y } from './sim.js';
+import { CONFIGS } from './accuracy.js';
 
 let failed = 0, passed = 0;
 function check(name, cond, detail = '') {
@@ -402,6 +403,48 @@ for (const [pos, label] of [[[6.5, 25.3, 2.5], 'corner 2.5m'], [[7.5, 18.3, 1.6]
     }
   }
   check('frame clock with 4 ms jitter: hardly a frame more than 8 ms off', off8 <= 2, `${off8} of ${n8}`);
+}
+
+// --- corners tapped starting at the wrong corner
+{
+  // Two real sessions (1280x720 camera picture): both times the first tap
+  // was the corner nearest the camera (service line and centre line), and
+  // the rest followed round the box.
+  const real = {
+    'B position, 1.3 m': [[1224.6, 410.4], [31.7, 319.0], [411.6, 243.1], [1229.2, 282.2]],
+    'baseline corner, 1.2 m': [[674.8, 420.0], [154.3, 333.0], [523.1, 303.7], [1049.0, 352.9]],
+  };
+  for (const [name, tapped] of Object.entries(real)) {
+    const r = orderCorners(tapped, 1280, 720);
+    check(`a real session tapped from the wrong corner is put right (${name})`, r.shift === 1 && r.pts[0] === tapped[1], `shift ${r.shift}`);
+  }
+  // Every camera position, mirrored too, with a zoomed, normal and wide
+  // lens: the right order is never changed, a wrong start is put right or
+  // left alone (never turned into another wrong order).
+  const TARGET = [-2.05, 15.6, 0.3];
+  let changedRight = 0, wrongMade = 0, fixed = 0, wrongStarts = 0;
+  for (const hfov of [45, 66, 80, 110]) {
+    for (const cfg of Object.values(CONFIGS)) {
+      for (const mirror of [false, true]) {
+        const cam = makeCamera({ pos: cfg.pos, target: TARGET, W: 1280, H: 720, hfov });
+        const truth = CORNERS.map((c) => {
+          const p = cam.project([...boxToWorld(...c.uv), 0]);
+          return [mirror ? 1280 - p[0] : p[0], p[1]];
+        });
+        if (truth.some(([x, y]) => x < 0 || x > 1280 || y < 0 || y > 720)) continue;
+        for (let s = 0; s < 4; s++) {
+          const r = orderCorners([0, 1, 2, 3].map((i) => truth[(i + s) % 4]), 1280, 720);
+          if (s === 0) { if (r.shift !== 0) changedRight++; continue; }
+          wrongStarts++;
+          if (r.shift === 4 - s) fixed++;
+          else if (r.shift !== 0) wrongMade++;
+        }
+      }
+    }
+  }
+  check('the corner order check never changes a right order', changedRight === 0, `${changedRight} changed`);
+  check('the corner order check never makes another wrong order', wrongMade === 0, `${wrongMade}`);
+  check('most wrong starting corners are put right', fixed >= 0.65 * wrongStarts, `${fixed} of ${wrongStarts}`);
 }
 
 // --- spoken distances
