@@ -211,6 +211,18 @@ node test/accuracy.js --n 30 --click 1.5 --jitter 1 --drop 0.05 --snap
 | 메뉴에 "홈 화면에 추가"나 "앱 설치"가 없음 | 크롬 앱이 아닌 곳(카카오톡·Claude 앱 속 브라우저)에서 열린 경우입니다. 메뉴에서 "Chrome에서 열기"를 고르거나 크롬 앱에 주소를 직접 입력하세요. 크롬에서는 오른쪽 위 ⋮ 메뉴를 아래로 내리면 있습니다. 삼성 인터넷이라면 아래쪽 ≡ → "현재 페이지 추가" → "홈 화면"이지만, 크롬을 권합니다. |
 | 파일을 새로 올렸는데 예전 화면이 나옴, 또는 화면이 반응하지 않음 | 인터넷이 되는 곳에서 앱을 열고 5초쯤 기다린 뒤, 앱을 완전히 닫았다가(최근 앱 목록에서 밀어서 닫기) 다시 여세요. GitHub Pages는 올린 뒤 약 10분 동안 브라우저가 예전 파일을 그대로 쓸 수 있으니, 그 사이라면 10분쯤 지나 다시 여세요. |
 
+## 버전
+
+앱 주소(https://turtlepre.github.io/servecall/)는 늘 가장 새 버전을 엽니다. 예전 버전은 아래에서 보거나 받을 수 있습니다(zip은 시험 코드까지 들어 있는 저장소 전체).
+
+| 버전 | 날짜 | 내용 | 파일 | 받기 |
+|---|---|---|---|---|
+| **v2.0** (지금) | 2026-11-17 | 실제 코트 녹화 분석 후 개선. 박스 둘레 라인 이름과 [이름 돌리기]·[센터↔사이드], 낮은 카메라에서 라인 자동 맞춤이 크게 빗나가던 버그 수정, 모서리 화면 안내 개선 | [보기](https://github.com/turtlepre/servecall/tree/bac6223) | [zip](https://github.com/turtlepre/servecall/archive/bac6223.zip) |
+| (중간본, 쓰지 마세요) | 2026-11-17 | 모서리 순서 자동 바로잡기. 바르게 찍은 순서를 뒤집는 문제가 있어 v2.0에서 뺌 | [보기](https://github.com/turtlepre/servecall/tree/b3b33c0) | [zip](https://github.com/turtlepre/servecall/archive/b3b33c0.zip) |
+| **v1.0** | 2026-11-17 | 처음 만든 앱. 낮은 카메라에서 손가락으로 대충 찍으면 라인 자동 맞춤이 네트 쪽 모서리를 크게 빗나가게 옮기는 버그가 있음 | [보기](https://github.com/turtlepre/servecall/tree/18ba1ac) | [zip](https://github.com/turtlepre/servecall/archive/18ba1ac.zip) |
+
+버전마다 무엇을 바꿨는지는 [변경 기록](https://github.com/turtlepre/servecall/commits/main)에, v1.0과 v2.0의 차이는 [비교 화면](https://github.com/turtlepre/servecall/compare/18ba1ac...bac6223)에 있습니다.
+
 ## 개발
 
 ```
